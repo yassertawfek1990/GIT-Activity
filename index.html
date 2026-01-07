@@ -4,25 +4,38 @@
 <meta charset="UTF-8">
 <title>Drug Matching Activity</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #667eea, #764ba2);
+  min-height: 100vh;
 }
 
 .container {
   max-width: 900px;
   margin: 15px auto;
   background: #ffffff;
-  border-radius: 14px;
-  padding: 15px;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 h2, h3 {
   text-align: center;
   color: #333;
+  margin: 10px 0;
+}
+
+h2 {
+  font-size: 24px;
+  color: #667eea;
+}
+
+h3 {
+  font-size: 18px;
+  color: #666;
+  font-weight: 500;
 }
 
 .hidden {
@@ -31,71 +44,146 @@ h2, h3 {
 
 input, button {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   font-size: 16px;
   margin-top: 10px;
+  box-sizing: border-box;
+}
+
+input {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  transition: border-color 0.3s;
+}
+
+input:focus {
+  outline: none;
+  border-color: #667eea;
 }
 
 button {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  position: relative;
-  z-index: 10;
-  touch-action: manipulation;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+button:active {
+  transform: translateY(1px);
 }
 
 .timer {
   text-align: center;
   font-weight: bold;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
+  font-size: 20px;
+  color: #667eea;
+  background: #f0f4ff;
+  padding: 12px;
+  border-radius: 8px;
 }
 
 .match-row {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-  align-items: center;
+  margin-bottom: 15px;
+  align-items: stretch;
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 10px;
+  gap: 10px;
 }
 
 .title {
-  flex: 1 1 60%;
-  padding: 8px;
+  flex: 1 1 55%;
+  padding: 10px;
+  font-size: 15px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
 }
 
 .dropzone {
   flex: 1 1 40%;
-  min-height: 48px;
-  border: 2px dashed #bbb;
-  border-radius: 8px;
-  padding: 4px;
-  background: #f7f7f7;
+  min-height: 60px;
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  padding: 8px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.dropzone.drag-over {
+  background: #e8f0ff;
+  border-color: #667eea;
+  border-style: solid;
 }
 
 .pool {
-  background: #f0f0f0;
-  border-radius: 10px;
-  padding: 10px;
+  background: linear-gradient(135deg, #f5f7fa, #e8eef5);
+  border-radius: 12px;
+  padding: 15px;
   margin-top: 20px;
+  border: 2px solid #e0e0e0;
 }
 
 .draggable {
-  background: #ffd166;
-  padding: 10px;
-  margin: 6px 0;
-  border-radius: 8px;
-  font-weight: bold;
+  background: linear-gradient(135deg, #ffd166, #ffb347);
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 10px;
+  font-weight: 600;
   text-align: center;
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.draggable:active {
+  cursor: grabbing;
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.draggable.dragging {
+  opacity: 0.7;
+  transform: scale(1.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  position: fixed;
+  pointer-events: none;
 }
 
 .result {
   text-align: center;
   font-weight: bold;
-  margin-top: 15px;
+  margin-top: 20px;
+  font-size: 18px;
+  color: #333;
+  padding: 15px;
+  border-radius: 8px;
+  background: #f0f4ff;
+}
+
+@media (max-width: 600px) {
+  .match-row {
+    flex-direction: column;
+  }
+  
+  .title, .dropzone {
+    flex: 1 1 100%;
+  }
 }
 </style>
 </head>
