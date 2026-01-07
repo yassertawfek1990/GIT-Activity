@@ -4,12 +4,18 @@
 <meta charset="UTF-8">
 <title>Drug Matching Activity</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #667eea, #764ba2);
   min-height: 100vh;
+  padding-bottom: 50px;
 }
 
 .container {
@@ -47,7 +53,6 @@ input, button {
   padding: 14px;
   font-size: 16px;
   margin-top: 10px;
-  box-sizing: border-box;
 }
 
 input {
@@ -70,6 +75,7 @@ button {
   font-weight: 600;
   transition: transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  touch-action: manipulation;
 }
 
 button:active {
@@ -125,6 +131,7 @@ button:active {
   background: #e8f0ff;
   border-color: #667eea;
   border-style: solid;
+  transform: scale(1.02);
 }
 
 .pool {
@@ -137,32 +144,40 @@ button:active {
 
 .draggable {
   background: linear-gradient(135deg, #ffd166, #ffb347);
-  padding: 12px;
+  padding: 14px;
   margin: 8px 0;
   border-radius: 10px;
   font-weight: 600;
   text-align: center;
-  cursor: grab;
-  touch-action: none;
+  cursor: move;
   user-select: none;
   transition: transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   color: #333;
+  position: relative;
 }
 
 .draggable:active {
   cursor: grabbing;
-  transform: scale(1.05);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-.draggable.dragging {
-  opacity: 0.7;
-  transform: scale(1.1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
+.dragging-clone {
   position: fixed;
+  background: linear-gradient(135deg, #ffd166, #ffb347);
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: #333;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   pointer-events: none;
+  z-index: 9999;
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.draggable.being-dragged {
+  opacity: 0.3;
 }
 
 .result {
@@ -183,6 +198,11 @@ button:active {
   
   .title, .dropzone {
     flex: 1 1 100%;
+  }
+  
+  .container {
+    padding: 15px;
+    margin: 10px;
   }
 }
 </style>
@@ -205,7 +225,7 @@ button:active {
 
   <div id="matches"></div>
 
-  <h3>Drag the drugs into the correct boxes</h3>
+  <h3>Tap and drag the drugs into the correct boxes</h3>
   <div class="pool" id="pool"></div>
 
   <button onclick="submitAnswers()">Submit</button>
@@ -239,6 +259,14 @@ let timer = 0;
 let interval;
 let traineeName = "";
 
+// Drag state
+let draggedElement = null;
+let dragClone = null;
+let currentDropZone = null;
+let touchOffsetX = 0;
+let touchOffsetY = 0;
+let autoScrollInterval = null;
+
 // ---------------- START ----------------
 function startGame() {
   traineeName = document.getElementById("traineeName").value.trim();
@@ -267,16 +295,13 @@ function loadGame() {
 
   // Create drop zones
   titles.forEach((title, i) => {
-    matches.innerHTML += `
-      <div class="match-row">
-        <div class="title">${title}</div>
-        <div class="dropzone"
-             data-id="d${i + 1}"
-             ondragover="allowDrop(event)"
-             ondrop="drop(event)">
-        </div>
-      </div>
+    const row = document.createElement("div");
+    row.className = "match-row";
+    row.innerHTML = `
+      <div class="title">${title}</div>
+      <div class="dropzone" data-id="d${i + 1}"></div>
     `;
+    matches.appendChild(row);
   });
 
   // Create draggable cards (shuffled)
@@ -285,94 +310,182 @@ function loadGame() {
     div.className = "draggable";
     div.id = id;
     div.dataset.value = text;
-    div.draggable = true;
-    div.ondragstart = drag;
-    div.innerText = text;
+    div.textContent = text;
     pool.appendChild(div);
+    
+    // Add event listeners
+    setupDragElement(div);
   });
 }
 
-// ---------------- DRAG & DROP ----------------
-function allowDrop(e) {
-  e.preventDefault();
+// ---------------- DRAG SETUP ----------------
+function setupDragElement(element) {
+  // Touch events
+  element.addEventListener('touchstart', handleDragStart, { passive: false });
+  
+  // Mouse events
+  element.addEventListener('mousedown', handleDragStart);
 }
 
-function drag(e) {
-  e.dataTransfer.setData("text/plain", e.target.id);
+// ---------------- DRAG START ----------------
+function handleDragStart(e) {
+  // Prevent default to avoid text selection and scrolling
+  if (e.type === 'touchstart') {
+    e.preventDefault();
+  }
+  
+  draggedElement = e.currentTarget;
+  
+  // Get touch or mouse position
+  const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+  const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+  
+  // Calculate offset from element position
+  const rect = draggedElement.getBoundingClientRect();
+  touchOffsetX = clientX - rect.left;
+  touchOffsetY = clientY - rect.top;
+  
+  // Create visual clone
+  dragClone = document.createElement('div');
+  dragClone.className = 'dragging-clone';
+  dragClone.textContent = draggedElement.textContent;
+  dragClone.style.width = rect.width + 'px';
+  dragClone.style.left = (clientX - touchOffsetX) + 'px';
+  dragClone.style.top = (clientY - touchOffsetY) + 'px';
+  document.body.appendChild(dragClone);
+  
+  // Make original semi-transparent
+  draggedElement.classList.add('being-dragged');
+  
+  // Add move and end listeners
+  if (e.type === 'touchstart') {
+    document.addEventListener('touchmove', handleDragMove, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    document.addEventListener('touchcancel', handleDragEnd);
+  } else {
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+  }
+  
+  // Start auto-scroll check
+  startAutoScroll();
 }
 
-function drop(e) {
+// ---------------- DRAG MOVE ----------------
+function handleDragMove(e) {
+  if (!dragClone || !draggedElement) return;
+  
   e.preventDefault();
-  const id = e.dataTransfer.getData("text/plain");
-  const dragged = document.getElementById(id);
-
-  if (e.target.classList.contains("dropzone") && e.target.children.length === 0) {
-    e.target.appendChild(dragged);
+  
+  const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+  const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+  
+  // Update clone position
+  dragClone.style.left = (clientX - touchOffsetX) + 'px';
+  dragClone.style.top = (clientY - touchOffsetY) + 'px';
+  
+  // Find drop zone under touch/mouse
+  const elementBelow = document.elementFromPoint(clientX, clientY);
+  const dropZone = elementBelow?.closest('.dropzone');
+  
+  // Update drop zone highlighting
+  if (dropZone !== currentDropZone) {
+    if (currentDropZone) {
+      currentDropZone.classList.remove('drag-over');
+    }
+    if (dropZone) {
+      dropZone.classList.add('drag-over');
+    }
+    currentDropZone = dropZone;
   }
 }
 
-// Prevent page lock on mobile
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => e.preventDefault());
+// ---------------- DRAG END ----------------
+function handleDragEnd(e) {
+  if (!dragClone || !draggedElement) return;
+  
+  const clientX = e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
+  const clientY = e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY;
+  
+  // Find drop target
+  const elementBelow = document.elementFromPoint(clientX, clientY);
+  const dropZone = elementBelow?.closest('.dropzone');
+  
+  // Handle drop
+  if (dropZone) {
+    // Check if zone already has an item
+    const existingItem = dropZone.querySelector('.draggable');
+    
+    if (existingItem && existingItem !== draggedElement) {
+      // Swap: move existing item back to pool
+      document.getElementById('pool').appendChild(existingItem);
+    }
+    
+    // Move dragged element to drop zone
+    dropZone.appendChild(draggedElement);
+  }
+  
+  // Cleanup
+  draggedElement.classList.remove('being-dragged');
+  document.body.removeChild(dragClone);
+  
+  if (currentDropZone) {
+    currentDropZone.classList.remove('drag-over');
+  }
+  
+  dragClone = null;
+  draggedElement = null;
+  currentDropZone = null;
+  
+  // Remove listeners
+  document.removeEventListener('touchmove', handleDragMove);
+  document.removeEventListener('touchend', handleDragEnd);
+  document.removeEventListener('touchcancel', handleDragEnd);
+  document.removeEventListener('mousemove', handleDragMove);
+  document.removeEventListener('mouseup', handleDragEnd);
+  
+  // Stop auto-scroll
+  stopAutoScroll();
+}
+
+// ---------------- AUTO SCROLL ----------------
+function startAutoScroll() {
+  if (autoScrollInterval) return;
+  
+  autoScrollInterval = setInterval(() => {
+    if (!dragClone) {
+      stopAutoScroll();
+      return;
+    }
+    
+    const rect = dragClone.getBoundingClientRect();
+    const scrollThreshold = 100;
+    const scrollSpeed = 10;
+    
+    // Scroll up if near top
+    if (rect.top < scrollThreshold) {
+      window.scrollBy(0, -scrollSpeed);
+    }
+    
+    // Scroll down if near bottom
+    if (rect.bottom > window.innerHeight - scrollThreshold) {
+      window.scrollBy(0, scrollSpeed);
+    }
+  }, 16); // ~60fps
+}
+
+function stopAutoScroll() {
+  if (autoScrollInterval) {
+    clearInterval(autoScrollInterval);
+    autoScrollInterval = null;
+  }
+}
 
 // ---------------- SUBMIT ----------------
-// function submitAnswers() {
-//   let score = 0;
-
-//   document.querySelectorAll(".dropzone").forEach(zone => {
-//     const expected = correct[zone.dataset.id];
-//     const placed = zone.firstChild?.dataset.value;
-//     if (placed === expected) score++;
-//   });
-
-//   if (score < 6) {
-//     document.getElementById("result").innerText =
-//       `You answered ${score} out of 6 correct. Try again.`;
-//     return;
-//   }
-
-//   clearInterval(interval);
-//   saveResult();
-// }
-// function submitAnswers() {
-//   const zones = document.querySelectorAll(".dropzone");
-
-//   // 1️⃣ Check all filled
-//   for (let zone of zones) {
-//     if (!zone.firstChild) {
-//       document.getElementById("result").innerText =
-//         "Please complete all matches before submitting.";
-//       return;
-//     }
-//   }
-
-//   // 2️⃣ Score
-//   let score = 0;
-
-//   zones.forEach(zone => {
-//     const expected = correct[zone.dataset.id];
-//     const placed = zone.firstChild.dataset.value;
-
-//     if (placed === expected) score++;
-//   });
-
-//   // 3️⃣ Result
-//   if (score < 6) {
-//     document.getElementById("result").innerText =
-//       `You answered ${score} out of 6 correct. Try again.`;
-//     return;
-//   }
-
-//   clearInterval(interval);
-//   saveResult();
-// }
-
-
 function submitAnswers() {
   const zones = document.querySelectorAll(".dropzone");
   const result = document.getElementById("result");
 
-  // HARD GUARD — nothing can crash after this
   if (zones.length !== 6) {
     result.innerText = "Internal error. Reload the page.";
     return;
@@ -380,8 +493,9 @@ function submitAnswers() {
 
   for (let zone of zones) {
     if (!zone.firstElementChild) {
-      result.innerText =
-        "Please complete all matches before submitting.";
+      result.innerText = "⚠️ Please complete all matches before submitting.";
+      result.style.background = '#fff3cd';
+      result.style.color = '#856404';
       return;
     }
   }
@@ -400,12 +514,15 @@ function submitAnswers() {
   }
 
   if (score !== 6) {
-    result.innerText =
-      `You answered ${score} out of 6 correct. Try again.`;
+    result.innerText = `You answered ${score} out of 6 correct. Try again! 💪`;
+    result.style.background = '#ffe8e8';
+    result.style.color = '#d32f2f';
     return;
   }
 
   clearInterval(interval);
+  result.style.background = '#e8f5e9';
+  result.style.color = '#2e7d32';
   saveResult();
 }
 
