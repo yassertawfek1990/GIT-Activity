@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Drug Matching Activity</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.container {
+  max-width: 900px;
+  margin: 15px auto;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 15px;
+}
+
+h2, h3 {
+  text-align: center;
+  color: #333;
+}
+
+.hidden {
+  display: none;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  margin-top: 10px;
+}
+
+button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+  touch-action: manipulation;
+}
+
+.timer {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.match-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.title {
+  flex: 1 1 60%;
+  padding: 8px;
+}
+
+.dropzone {
+  flex: 1 1 40%;
+  min-height: 48px;
+  border: 2px dashed #bbb;
+  border-radius: 8px;
+  padding: 4px;
+  background: #f7f7f7;
+}
+
+.pool {
+  background: #f0f0f0;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 20px;
+}
+
+.draggable {
+  background: #ffd166;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  font-weight: bold;
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.result {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<!-- NAME SCREEN -->
+<div id="nameScreen">
+  <h2>Enter Your Name</h2>
+  <input id="traineeName" placeholder="Your name">
+  <button onclick="startGame()">Start</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="gameScreen" class="hidden">
+  <div class="timer">Time: <span id="time">0</span> sec</div>
+
+  <div id="matches"></div>
+
+  <h3>Drag the drugs into the correct boxes</h3>
+  <div class="pool" id="pool"></div>
+
+  <button onclick="submitAnswers()">Submit</button>
+  <div class="result" id="result"></div>
+</div>
+
+</div>
+
+<script>
+// ---------------- DATA ----------------
+const correct = {
+  d1: "Vominore | Meclizine, pyridoxine",
+  d2: "Bio-fiber",
+  d3: "Duphalac",
+  d4: "Resolor",
+  d5: "Laxatrol | docusate, senna",
+  d6: "Kapect"
+};
+
+const titles = [
+  "Reduce nausea & vomiting during pregnancy",
+  "Bulk forming laxative",
+  "Safe laxative for elderly",
+  "Used for chronic constipation",
+  "Frequent use can cause cathartic colon",
+  "Adsorb toxins & reduce fecal passage frequencies"
+];
+
+// ---------------- STATE ----------------
+let timer = 0;
+let interval;
+let traineeName = "";
+
+// ---------------- START ----------------
+function startGame() {
+  traineeName = document.getElementById("traineeName").value.trim();
+  if (!traineeName) {
+    alert("Please enter your name");
+    return;
+  }
+
+  document.getElementById("nameScreen").classList.add("hidden");
+  document.getElementById("gameScreen").classList.remove("hidden");
+
+  interval = setInterval(() => {
+    timer++;
+    document.getElementById("time").innerText = timer;
+  }, 1000);
+
+  loadGame();
+}
+
+// ---------------- LOAD GAME ----------------
+function loadGame() {
+  const matches = document.getElementById("matches");
+  const pool = document.getElementById("pool");
+  matches.innerHTML = "";
+  pool.innerHTML = "";
+
+  // Create drop zones
+  titles.forEach((title, i) => {
+    matches.innerHTML += `
+      <div class="match-row">
+        <div class="title">${title}</div>
+        <div class="dropzone"
+             data-id="d${i + 1}"
+             ondragover="allowDrop(event)"
+             ondrop="drop(event)">
+        </div>
+      </div>
+    `;
+  });
+
+  // Create draggable cards (shuffled)
+  shuffle(Object.entries(correct)).forEach(([id, text]) => {
+    const div = document.createElement("div");
+    div.className = "draggable";
+    div.id = id;
+    div.dataset.value = text;
+    div.draggable = true;
+    div.ondragstart = drag;
+    div.innerText = text;
+    pool.appendChild(div);
+  });
+}
+
+// ---------------- DRAG & DROP ----------------
+function allowDrop(e) {
+  e.preventDefault();
+}
+
+function drag(e) {
+  e.dataTransfer.setData("text/plain", e.target.id);
+}
+
+function drop(e) {
+  e.preventDefault();
+  const id = e.dataTransfer.getData("text/plain");
+  const dragged = document.getElementById(id);
+
+  if (e.target.classList.contains("dropzone") && e.target.children.length === 0) {
+    e.target.appendChild(dragged);
+  }
+}
+
+// Prevent page lock on mobile
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+
+// ---------------- SUBMIT ----------------
+// function submitAnswers() {
+//   let score = 0;
+
+//   document.querySelectorAll(".dropzone").forEach(zone => {
+//     const expected = correct[zone.dataset.id];
+//     const placed = zone.firstChild?.dataset.value;
+//     if (placed === expected) score++;
+//   });
+
+//   if (score < 6) {
+//     document.getElementById("result").innerText =
+//       `You answered ${score} out of 6 correct. Try again.`;
+//     return;
+//   }
+
+//   clearInterval(interval);
+//   saveResult();
+// }
+// function submitAnswers() {
+//   const zones = document.querySelectorAll(".dropzone");
+
+//   // 1️⃣ Check all filled
+//   for (let zone of zones) {
+//     if (!zone.firstChild) {
+//       document.getElementById("result").innerText =
+//         "Please complete all matches before submitting.";
+//       return;
+//     }
+//   }
+
+//   // 2️⃣ Score
+//   let score = 0;
+
+//   zones.forEach(zone => {
+//     const expected = correct[zone.dataset.id];
+//     const placed = zone.firstChild.dataset.value;
+
+//     if (placed === expected) score++;
+//   });
+
+//   // 3️⃣ Result
+//   if (score < 6) {
+//     document.getElementById("result").innerText =
+//       `You answered ${score} out of 6 correct. Try again.`;
+//     return;
+//   }
+
+//   clearInterval(interval);
+//   saveResult();
+// }
+
+
+function submitAnswers() {
+  const zones = document.querySelectorAll(".dropzone");
+  const result = document.getElementById("result");
+
+  // HARD GUARD — nothing can crash after this
+  if (zones.length !== 6) {
+    result.innerText = "Internal error. Reload the page.";
+    return;
+  }
+
+  for (let zone of zones) {
+    if (!zone.firstElementChild) {
+      result.innerText =
+        "Please complete all matches before submitting.";
+      return;
+    }
+  }
+
+  let score = 0;
+
+  for (let zone of zones) {
+    const expected = correct[zone.dataset.id];
+    const placedEl = zone.firstElementChild;
+
+    if (!placedEl || !placedEl.dataset) continue;
+
+    if (placedEl.dataset.value === expected) {
+      score++;
+    }
+  }
+
+  if (score !== 6) {
+    result.innerText =
+      `You answered ${score} out of 6 correct. Try again.`;
+    return;
+  }
+
+  clearInterval(interval);
+  saveResult();
+}
+
+// ---------------- SAVE ----------------
+function saveResult() {
+  fetch("https://script.google.com/macros/s/AKfycbywTBmYCeVtyqTU_Xqr1CDEFdo5Cj-9ianBNZdWT1avaMQUYHVof_dG2r29utcqivZHSw/exec", {
+    method: "POST",
+    mode: "no-cors",
+    body: JSON.stringify({
+      name: traineeName,
+      time: timer + " sec"
+    })
+  });
+
+  document.getElementById("result").innerText =
+    "🎉 All answers correct! Your result has been saved.";
+}
+
+// ---------------- UTILS ----------------
+function shuffle(arr) {
+  return arr.sort(() => Math.random() - 0.5);
+}
+</script>
+
+</body>
+</html>
